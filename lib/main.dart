@@ -43,7 +43,7 @@ class _MyHomePageState extends State<MyHomePage> {
   
   Future<File> get _localFile async {
     final dir = await getApplicationDocumentsDirectory();
-    return File('${dir.path}${Platform.pathSeparator}hello_windows_notes.json');
+    return File('${dir.path}${Platform.pathSeparator}flutter_notes.json');
   }
 
   Future<void> _loadNotes() async {
