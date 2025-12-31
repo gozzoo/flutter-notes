@@ -1,10 +1,11 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.14)
-project(hello_windows LANGUAGES CXX)
+project(flutter_notes LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
-# the on-disk name of your application.
-set(BINARY_NAME "hello_windows")
+# the on-disk name of your application. Use an underscore form for the binary
+# target name; the displayed ProductName is set in Runner.rc.
+set(BINARY_NAME "flutter_notes")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.

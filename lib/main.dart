@@ -15,11 +15,11 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'flutter-notes',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: const MyHomePage(title: 'My prompts'),
+      home: const MyHomePage(title: 'flutter-notes'),
     );
   }
 }
@@ -102,10 +102,10 @@ class _MyHomePageState extends State<MyHomePage> {
     super.dispose();
   }
 
-  void _handleKey(RawKeyEvent event) {
-    if (event is RawKeyDownEvent) {
+  void _handleKey(KeyEvent event) {
+    if (event is KeyDownEvent) {
       final key = event.logicalKey;
-      final isCtrl = event.isControlPressed;
+      final isCtrl = HardwareKeyboard.instance.isControlPressed;
       if (isCtrl && key == LogicalKeyboardKey.keyN) {
         _addNote();
       } else if (key == LogicalKeyboardKey.delete) {
@@ -124,13 +124,7 @@ class _MyHomePageState extends State<MyHomePage> {
     _saveNotes();
   }
 
-  void _updateCurrentItem(String text) {
-    // kept for compatibility but not used; editor now uses _onEditorChanged
-    setState(() {
-      _items[_selectedIndex] = text;
-    });
-    _saveNotes();
-  }
+  // removed unused helper: editor updates items via _onEditorChanged
 
   void _addNote() {
     setState(() {
@@ -166,7 +160,7 @@ class _MyHomePageState extends State<MyHomePage> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Delete note'),
-          content: Text('Delete "${name}"? This cannot be undone.'),
+          content: Text('Delete "$name"? This cannot be undone.'),
           actions: [
             TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
             TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete')),
@@ -177,16 +171,14 @@ class _MyHomePageState extends State<MyHomePage> {
     return result == true;
   }
 
-  Future<void> _renameItemDialog(int index) async {
-    // removed: renaming is handled by editing the first line in the editor
-  }
+  // removed unused rename dialog helper
 
   void _onEditorChanged() {
     if (_isUpdatingEditors) return;
     if (_items.isEmpty) return;
     final title = _titleController.text;
     final body = _bodyController.text;
-    final combined = title + (body.isNotEmpty ? '\n' + body : '');
+    final combined = body.isNotEmpty ? '$title\n$body' : title;
     setState(() {
       _items[_selectedIndex] = combined;
     });
@@ -213,9 +205,9 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    return RawKeyboardListener(
+    return KeyboardListener(
       focusNode: _focusNode,
-      onKey: _handleKey,
+      onKeyEvent: _handleKey,
       child: Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
@@ -249,10 +241,20 @@ class _MyHomePageState extends State<MyHomePage> {
               child: ListView.builder(
                 itemCount: _items.length,
                 itemBuilder: (context, index) {
-                  final parts = _items[index].split('\n');
+                  final full = _items[index];
+                  final parts = full.split('\n');
                   final firstLine = parts.isNotEmpty ? parts.first : '';
                   // join all remaining lines into a single-line preview for subtitle
-                  final secondLine = parts.length > 1 ? parts.sublist(1).join(' ').trim() : '';
+                  String secondLine = '';
+                  if (parts.length > 1) {
+                    secondLine = parts.sublist(1).join(' ').trim();
+                  } else {
+                    // for single-line items, show a short preview only if long
+                    final trimmed = full.trim();
+                    if (trimmed.length > 40) {
+                      secondLine = trimmed.substring(0, 40).trim();
+                    }
+                  }
                   return ListTile(
                     title: Text(
                       firstLine,
@@ -265,14 +267,14 @@ class _MyHomePageState extends State<MyHomePage> {
                             secondLine,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: Theme.of(context).colorScheme.onSurface.withAlpha((0.7 * 255).round()),
                                 ),
                           )
                         : null,
                       selected: index == _selectedIndex,
-                      selectedTileColor:
-                          Theme.of(context).colorScheme.primary.withOpacity(0.12),
+                        selectedTileColor:
+                          Theme.of(context).colorScheme.primary.withAlpha((0.12 * 255).round()),
                       selectedColor: Theme.of(context).colorScheme.primary,
                       onTap: () => _selectItem(index),
                     );
@@ -290,7 +292,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     controller: _titleController,
                     maxLines: 1,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, fontSize: 18),
-                    decoration: const InputDecoration(border: InputBorder.none, hintText: 'Title'),
+                    decoration: const InputDecoration(border: InputBorder.none),
                   ),
                   const SizedBox(height: 8),
                   Expanded(
