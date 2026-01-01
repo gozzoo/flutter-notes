@@ -1,17 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:io';
 import 'package:window_manager/window_manager.dart';
+import 'package:windows_single_instance/windows_single_instance.dart';
 import 'services/storage_service.dart';
 import 'widgets/note_list.dart';
 import 'widgets/note_editor.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await StorageService.init();
-  await windowManager.ensureInitialized();
-  await StorageService.restoreWindowBounds();
+ServerSocket? instanceSocket;
 
-  runApp(const MyApp());
+void main(List<String> args) async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    instanceSocket = await ServerSocket.bind(
+      InternetAddress.loopbackIPv4,
+      42969,
+    );
+
+    await WindowsSingleInstance.ensureSingleInstance(
+      args,
+      "flutter_notes_unique_instance",
+      onSecondWindow: (args) async {
+        await windowManager.show();
+        await windowManager.focus();
+        if (await windowManager.isMinimized()) {
+          await windowManager.restore();
+        }
+      },
+    );
+
+    await StorageService.init();
+    await windowManager.ensureInitialized();
+    await StorageService.restoreWindowBounds();
+
+    runApp(const MyApp());
+  } catch (e) {
+    try {
+      await WindowsSingleInstance.ensureSingleInstance(
+        args,
+        "flutter_notes_unique_instance",
+        onSecondWindow: (_) {},
+      ).timeout(const Duration(seconds: 3));
+    } catch (e) {
+      // Ignore errors/timeouts in secondary
+    }
+
+    exit(0);
+  }
 }
 
 class MyApp extends StatelessWidget {
