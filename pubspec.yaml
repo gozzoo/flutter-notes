@@ -38,6 +38,7 @@ dependencies:
   hive_flutter: ^1.1.0
   window_manager: ^0.5.1
   windows_single_instance: ^1.1.0
+  flutter_launcher_icons: ^0.14.4
 
 dev_dependencies:
   flutter_test:
@@ -91,3 +92,12 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+flutter_launcher_icons:
+  android: false
+  ios: false
+  
+  windows:
+    generate: true
+    image_path: "assets/app_logo.png" # PNG is recommended for Windows conversion
+    icon_size: 256 # Higher resolution ensures it looks good on 4K displays
