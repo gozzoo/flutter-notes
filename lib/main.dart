@@ -134,9 +134,8 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
     _updateEditorsFromSelected();
   }
 
-  void _saveNotes() {
-    StorageService.saveNotes(_items);
-    StorageService.saveSelectedIndex(_selectedIndex);
+  Future<void> _saveSelectedIndex() async {
+    await StorageService.saveSelectedIndex(_selectedIndex);
   }
 
   void _handleKey(KeyEvent event) {
@@ -158,32 +157,39 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
       _selectedIndex = index;
       _updateEditorsFromSelected();
     });
-    _saveNotes();
+    _saveSelectedIndex();
   }
 
   void _addNote() {
-    setState(() {
-      _items.add('New note');
-      _selectedIndex = _items.length - 1;
-      _updateEditorsFromSelected();
+    const newNote = 'New note';
+    // Add to storage first (simplistic sync approach for now)
+    StorageService.addNote(newNote).then((_) {
+      setState(() {
+        _items.add(newNote);
+        _selectedIndex = _items.length - 1;
+        _updateEditorsFromSelected();
+      });
+      _saveSelectedIndex();
     });
-    _saveNotes();
   }
 
   void _deleteNote() {
     if (_items.isEmpty) return;
-    setState(() {
-      _items.removeAt(_selectedIndex);
-      if (_items.isEmpty) {
-        _selectedIndex = 0;
-        _titleController.text = '';
-        _bodyController.text = '';
-      } else {
-        _selectedIndex = _selectedIndex.clamp(0, _items.length - 1);
-        _updateEditorsFromSelected();
-      }
+    final indexToDelete = _selectedIndex;
+    StorageService.deleteNote(indexToDelete).then((_) {
+      setState(() {
+        _items.removeAt(indexToDelete);
+        if (_items.isEmpty) {
+          _selectedIndex = 0;
+          _titleController.text = '';
+          _bodyController.text = '';
+        } else {
+          _selectedIndex = _selectedIndex.clamp(0, _items.length - 1);
+          _updateEditorsFromSelected();
+        }
+      });
+      _saveSelectedIndex();
     });
-    _saveNotes();
   }
 
   Future<bool> _confirmDeleteDialog() async {
@@ -217,10 +223,14 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
     final title = _titleController.text;
     final body = _bodyController.text;
     final combined = body.isNotEmpty ? '$title\n$body' : title;
-    setState(() {
-      _items[_selectedIndex] = combined;
-    });
-    _saveNotes();
+
+    // Check if content actually changed to avoid unnecessary disk writes if listener triggers frequently
+    if (_items[_selectedIndex] != combined) {
+      setState(() {
+        _items[_selectedIndex] = combined;
+      });
+      StorageService.updateNote(_selectedIndex, combined);
+    }
   }
 
   void _updateEditorsFromSelected() {
