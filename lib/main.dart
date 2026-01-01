@@ -231,7 +231,8 @@ class _MyHomePageState extends State<MyHomePage> {
                 child: ListView.builder(
                   itemCount: _items.length,
                   itemBuilder: (context, index) {
-                    final full = _items[index];
+                    final reverseIndex = _items.length - 1 - index;
+                    final full = _items[reverseIndex];
                     final parts = full.split('\n');
                     final firstLine = parts.isNotEmpty ? parts.first : '';
                     // join all remaining lines into a single-line preview for subtitle
@@ -268,12 +269,12 @@ class _MyHomePageState extends State<MyHomePage> {
                                   ),
                             )
                           : null,
-                      selected: index == _selectedIndex,
+                      selected: reverseIndex == _selectedIndex,
                       selectedTileColor: Theme.of(
                         context,
                       ).colorScheme.primary.withAlpha((0.12 * 255).round()),
                       selectedColor: Theme.of(context).colorScheme.primary,
-                      onTap: () => _selectItem(index),
+                      onTap: () => _selectItem(reverseIndex),
                     );
                   },
                 ),
