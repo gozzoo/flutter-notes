@@ -1,11 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:flutter/services.dart';
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
   await Hive.openBox('notes');
+  await windowManager.ensureInitialized();
+
+  final box = Hive.box('notes');
+
+  setWindowBounds(box);
+
   runApp(const MyApp());
+}
+
+void setWindowBounds(Box<dynamic> box) {
+  final double? x = box.get('window_x');
+  final double? y = box.get('window_y');
+  final double? width = box.get('window_width');
+  final double? height = box.get('window_height');
+
+  if (x != null && y != null && width != null && height != null) {
+    windowManager.setBounds(Rect.fromLTWH(x, y, width, height));
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -32,7 +51,7 @@ class MyHomePage extends StatefulWidget {
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _MyHomePageState extends State<MyHomePage> with WindowListener {
   final List<String> _items = [];
   int _selectedIndex = 0;
   final TextEditingController _titleController = TextEditingController();
@@ -68,6 +87,7 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
+    windowManager.addListener(this);
     _loadNotes();
     _titleController.addListener(_onEditorChanged);
     _bodyController.addListener(_onEditorChanged);
@@ -78,10 +98,30 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   void dispose() {
+    windowManager.removeListener(this);
     _focusNode.dispose();
     _titleController.dispose();
     _bodyController.dispose();
     super.dispose();
+  }
+
+  @override
+  void onWindowMoved() {
+    _saveWindowBounds();
+  }
+
+  @override
+  void onWindowResized() {
+    _saveWindowBounds();
+  }
+
+  Future<void> _saveWindowBounds() async {
+    final bounds = await windowManager.getBounds();
+    final box = Hive.box('notes');
+    box.put('window_x', bounds.left);
+    box.put('window_y', bounds.top);
+    box.put('window_width', bounds.width);
+    box.put('window_height', bounds.height);
   }
 
   void _handleKey(KeyEvent event) {
