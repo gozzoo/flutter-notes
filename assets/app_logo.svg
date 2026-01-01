@@ -4,29 +4,29 @@
   viewBox="0 0 512 512"
   xmlns="http://www.w3.org/2000/svg"
 >
-  <!-- Background -->
-  <rect x="56" y="56" width="400" height="400" rx="48" fill="#4F46E5"/>
+  <!-- Full background -->
+  <rect width="512" height="512" rx="96" fill="#4F46E5"/>
 
   <!-- Notebook -->
-  <rect x="140" y="120" width="232" height="272" rx="20" fill="#FFFFFF"/>
+  <rect x="128" y="96" width="256" height="320" rx="28" fill="#FFFFFF"/>
 
   <!-- Folded corner -->
   <path
-    d="M340 120 L372 152 L340 152 Z"
+    d="M336 96 L384 144 L336 144 Z"
     fill="#E5E7EB"
   />
 
-  <!-- Lines -->
-  <line x1="168" y1="180" x2="344" y2="180" stroke="#CBD5E1" stroke-width="8"/>
-  <line x1="168" y1="224" x2="344" y2="224" stroke="#CBD5E1" stroke-width="8"/>
-  <line x1="168" y1="268" x2="300" y2="268" stroke="#CBD5E1" stroke-width="8"/>
+  <!-- Text lines -->
+  <line x1="160" y1="176" x2="352" y2="176" stroke="#CBD5E1" stroke-width="10"/>
+  <line x1="160" y1="224" x2="352" y2="224" stroke="#CBD5E1" stroke-width="10"/>
+  <line x1="160" y1="272" x2="304" y2="272" stroke="#CBD5E1" stroke-width="10"/>
 
-  <!-- Checkmark -->
+  <!-- Checkmark / action indicator -->
   <path
-    d="M190 320 L220 350 L280 290"
+    d="M184 328 L224 368 L304 288"
     fill="none"
     stroke="#4F46E5"
-    stroke-width="14"
+    stroke-width="18"
     stroke-linecap="round"
     stroke-linejoin="round"
   />
