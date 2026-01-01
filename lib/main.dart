@@ -1,30 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'package:window_manager/window_manager.dart';
 import 'package:flutter/services.dart';
+import 'package:window_manager/window_manager.dart';
+import 'services/storage_service.dart';
+import 'widgets/note_list.dart';
+import 'widgets/note_editor.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Hive.initFlutter();
-  await Hive.openBox('notes');
+  await StorageService.init();
   await windowManager.ensureInitialized();
-
-  final box = Hive.box('notes');
-
-  setWindowBounds(box);
+  await StorageService.restoreWindowBounds();
 
   runApp(const MyApp());
-}
-
-void setWindowBounds(Box<dynamic> box) {
-  final double? x = box.get('window_x');
-  final double? y = box.get('window_y');
-  final double? width = box.get('window_width');
-  final double? height = box.get('window_height');
-
-  if (x != null && y != null && width != null && height != null) {
-    windowManager.setBounds(Rect.fromLTWH(x, y, width, height));
-  }
 }
 
 class MyApp extends StatelessWidget {
@@ -59,31 +46,6 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
   final FocusNode _focusNode = FocusNode();
   bool _isUpdatingEditors = false;
 
-  void _loadNotes() {
-    final box = Hive.box('notes');
-    final items = box.get('items', defaultValue: []);
-    final sel = box.get('selectedIndex', defaultValue: 0) as int;
-
-    if (items is List) {
-      setState(() {
-        _items.clear();
-        _items.addAll(items.cast<String>());
-        if (_items.isNotEmpty) {
-          _selectedIndex = sel.clamp(0, _items.length - 1);
-        } else {
-          _selectedIndex = 0;
-        }
-      });
-      _updateEditorsFromSelected();
-    }
-  }
-
-  void _saveNotes() {
-    final box = Hive.box('notes');
-    box.put('items', _items);
-    box.put('selectedIndex', _selectedIndex);
-  }
-
   @override
   void initState() {
     super.initState();
@@ -117,11 +79,28 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
 
   Future<void> _saveWindowBounds() async {
     final bounds = await windowManager.getBounds();
-    final box = Hive.box('notes');
-    box.put('window_x', bounds.left);
-    box.put('window_y', bounds.top);
-    box.put('window_width', bounds.width);
-    box.put('window_height', bounds.height);
+    await StorageService.saveWindowBounds(bounds);
+  }
+
+  void _loadNotes() {
+    final items = StorageService.getNotes();
+    final sel = StorageService.getSelectedIndex();
+
+    setState(() {
+      _items.clear();
+      _items.addAll(items);
+      if (_items.isNotEmpty) {
+        _selectedIndex = sel.clamp(0, _items.length - 1);
+      } else {
+        _selectedIndex = 0;
+      }
+    });
+    _updateEditorsFromSelected();
+  }
+
+  void _saveNotes() {
+    StorageService.saveNotes(_items);
+    StorageService.saveSelectedIndex(_selectedIndex);
   }
 
   void _handleKey(KeyEvent event) {
@@ -146,8 +125,6 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
     _saveNotes();
   }
 
-  // removed unused helper: editor updates items via _onEditorChanged
-
   void _addNote() {
     setState(() {
       _items.add('New note');
@@ -159,7 +136,6 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
 
   void _deleteNote() {
     if (_items.isEmpty) return;
-    // removed directly; prefer using confirmation via _confirmDelete
     setState(() {
       _items.removeAt(_selectedIndex);
       if (_items.isEmpty) {
@@ -176,7 +152,7 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
 
   Future<bool> _confirmDeleteDialog() async {
     if (_items.isEmpty) return false;
-    final name = _items[_selectedIndex];
+    final name = _items[_selectedIndex].split('\n').first;
     final result = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -198,8 +174,6 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
     );
     return result == true;
   }
-
-  // removed unused rename dialog helper
 
   void _onEditorChanged() {
     if (_isUpdatingEditors) return;
@@ -262,95 +236,16 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
           children: [
             SizedBox(
               width: 300,
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border(
-                    right: BorderSide(color: Theme.of(context).dividerColor),
-                  ),
-                ),
-                child: ListView.builder(
-                  itemCount: _items.length,
-                  itemBuilder: (context, index) {
-                    final reverseIndex = _items.length - 1 - index;
-                    final full = _items[reverseIndex];
-                    final parts = full.split('\n');
-                    final firstLine = parts.isNotEmpty ? parts.first : '';
-                    // join all remaining lines into a single-line preview for subtitle
-                    String secondLine = '';
-                    if (parts.length > 1) {
-                      secondLine = parts.sublist(1).join(' ').trim();
-                    } else {
-                      // for single-line items, show a short preview only if long
-                      final trimmed = full.trim();
-                      if (trimmed.length > 40) {
-                        secondLine = trimmed.substring(0, 40).trim();
-                      }
-                    }
-                    return ListTile(
-                      title: Text(
-                        firstLine,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      subtitle: secondLine.isNotEmpty
-                          ? Text(
-                              secondLine,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withAlpha((0.7 * 255).round()),
-                                  ),
-                            )
-                          : null,
-                      selected: reverseIndex == _selectedIndex,
-                      selectedTileColor: Theme.of(
-                        context,
-                      ).colorScheme.primary.withAlpha((0.12 * 255).round()),
-                      selectedColor: Theme.of(context).colorScheme.primary,
-                      onTap: () => _selectItem(reverseIndex),
-                    );
-                  },
-                ),
+              child: NoteList(
+                items: _items,
+                selectedIndex: _selectedIndex,
+                onItemSelected: _selectItem,
               ),
             ),
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    TextField(
-                      controller: _titleController,
-                      maxLines: 1,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: _bodyController,
-                        maxLines: null,
-                        expands: true,
-                        textAlignVertical: TextAlignVertical.top,
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              child: NoteEditor(
+                titleController: _titleController,
+                bodyController: _bodyController,
               ),
             ),
           ],
