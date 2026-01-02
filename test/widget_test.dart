@@ -15,7 +15,7 @@ void main() {
   });
 
   testWidgets('App starts and shows title', (WidgetTester tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const FlutterNotesApp());
     expect(find.text('Flutter notes'), findsOneWidget);
   });
 }

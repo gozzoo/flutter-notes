@@ -1,62 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:io';
 import 'package:window_manager/window_manager.dart';
 import 'package:windows_single_instance/windows_single_instance.dart';
 import 'services/storage_service.dart';
 import 'widgets/note_list.dart';
 import 'widgets/note_editor.dart';
 
-ServerSocket? instanceSocket;
-
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  try {
-    instanceSocket = await ServerSocket.bind(
-      InternetAddress.loopbackIPv4,
-      42969,
-    );
+  await WindowsSingleInstance.ensureSingleInstance(
+    args,
+    "flutter_notes",
+    onSecondWindow: (args) async {
+      // This code runs in the ALREADY OPEN instance
+      await windowManager.show();
+      await windowManager.focus();
+      if (await windowManager.isMinimized()) {
+        await windowManager.restore();
+      }
+    },
+  );
 
-    await WindowsSingleInstance.ensureSingleInstance(
-      args,
-      "flutter_notes_unique_instance",
-      onSecondWindow: (args) async {
-        await windowManager.show();
-        await windowManager.focus();
-        if (await windowManager.isMinimized()) {
-          await windowManager.restore();
-        }
-      },
-    );
+  await StorageService.init();
+  await windowManager.ensureInitialized();
+  await StorageService.restoreWindowBounds();
 
-    await StorageService.init();
-    await windowManager.ensureInitialized();
-    await StorageService.restoreWindowBounds();
-
-    runApp(const MyApp());
-  } catch (e) {
-    try {
-      await WindowsSingleInstance.ensureSingleInstance(
-        args,
-        "flutter_notes_unique_instance",
-        onSecondWindow: (_) {},
-      ).timeout(const Duration(seconds: 3));
-    } catch (e) {
-      // Ignore errors/timeouts in secondary
-    }
-
-    exit(0);
-  }
+  runApp(const FlutterNotesApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class FlutterNotesApp extends StatelessWidget {
+  const FlutterNotesApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'flutter-notes',
+      title: 'Flutter notes',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
