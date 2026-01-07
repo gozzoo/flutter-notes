@@ -404,7 +404,7 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
                                       },
                                     )
                                   : null,
-                              border: const OutlineInputBorder(),
+                              border: InputBorder.none,
                               isDense: true,
                               contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 12,
@@ -416,6 +416,13 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
                           );
                         },
                       ),
+                    ),
+                    Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Colors.grey[300],
+                      indent: 16,
+                      endIndent: 16,
                     ),
                     Expanded(
                       child: NoteList(
