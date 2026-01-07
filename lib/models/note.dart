@@ -45,3 +45,15 @@ class Note {
     };
   }
 }
+
+class NoteMetadata {
+  final String id;
+  final DateTime creationDate;
+  final DateTime lastModified;
+
+  NoteMetadata({
+    required this.id,
+    required this.creationDate,
+    required this.lastModified,
+  });
+}

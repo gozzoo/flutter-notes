@@ -59,8 +59,11 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> with WindowListener {
-  final List<Note> _items = [];
+  final List<NoteMetadata> _items = [];
   int _selectedIndex = 0;
+  Note? _selectedNote;
+  bool _isLoadingNote = false;
+
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _bodyController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
@@ -103,7 +106,7 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
   }
 
   void _loadNotes() {
-    var items = StorageService.getNotes();
+    var items = StorageService.getNotesMeta();
     // Sort by creationDate descending (Newest first)
     items.sort((a, b) => b.creationDate.compareTo(a.creationDate));
 
@@ -119,11 +122,32 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
         } else {
           _selectedIndex = 0;
         }
+        _loadSelectedNote();
       } else {
         _selectedIndex = 0;
+        _selectedNote = null;
+        _updateEditorsFromSelected();
       }
     });
-    _updateEditorsFromSelected();
+  }
+
+  Future<void> _loadSelectedNote() async {
+    if (_items.isEmpty) return;
+
+    setState(() {
+      _isLoadingNote = true;
+    });
+
+    final id = _items[_selectedIndex].id;
+    final note = await StorageService.getNote(id);
+
+    if (mounted) {
+      setState(() {
+        _selectedNote = note;
+        _isLoadingNote = false;
+        _updateEditorsFromSelected();
+      });
+    }
   }
 
   Future<void> _saveSelection() async {
@@ -143,30 +167,30 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
       if (isCtrl && key == LogicalKeyboardKey.keyN) {
         _addNote();
       } else if (key == LogicalKeyboardKey.delete) {
-        _confirmDeleteDialog().then((ok) {
-          if (ok) _deleteNote();
-        });
+        if (_items.isNotEmpty) {
+          _confirmDeleteDialog().then((ok) {
+            if (ok) _deleteNote();
+          });
+        }
       }
     }
   }
 
   void _selectItem(int index) {
+    if (_selectedIndex == index) return;
     setState(() {
       _selectedIndex = index;
-      _updateEditorsFromSelected();
     });
     _saveSelection();
+    _loadSelectedNote();
   }
 
   void _addNote() {
     final newNote = Note.create(content: 'New note');
     StorageService.addNote(newNote).then((_) {
-      setState(() {
-        _items.insert(0, newNote);
-        _selectedIndex = 0;
-        _updateEditorsFromSelected();
-      });
-      _saveSelection();
+      // Refresh list logic
+      // Ideally we just insert the meta and select it, but reloading is safer for sort sync
+      _loadNotes(); // This might be slightly inefficient if list is huge, but reloading meta is fast
     });
   }
 
@@ -229,32 +253,27 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
 
   void _deleteNote() {
     if (_items.isEmpty) return;
-    final noteToDelete = _items[_selectedIndex];
-    StorageService.deleteNote(noteToDelete.id).then((_) {
-      setState(() {
-        _items.removeAt(_selectedIndex);
-        if (_items.isEmpty) {
-          _selectedIndex = 0;
-          _titleController.text = '';
-          _bodyController.text = '';
-        } else {
-          _selectedIndex = _selectedIndex.clamp(0, _items.length - 1);
-          _updateEditorsFromSelected();
-        }
-      });
-      _saveSelection();
+    final idToDelete = _items[_selectedIndex].id;
+    StorageService.deleteNote(idToDelete).then((_) {
+      _loadNotes(); // Simplest way to refresh list and selection
     });
   }
 
   Future<bool> _confirmDeleteDialog() async {
     if (_items.isEmpty) return false;
-    final name = _items[_selectedIndex].content.split('\n').first;
+    // We try to show name if loaded, otherwise just "this note"
+    String name = "this note";
+    if (_selectedNote != null &&
+        _selectedNote!.id == _items[_selectedIndex].id) {
+      name = '"${_selectedNote!.content.split('\n').first}"';
+    }
+
     final result = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: const Text('Delete note'),
-          content: Text('Delete "$name"? This cannot be undone.'),
+          content: Text('Delete $name? This cannot be undone.'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -273,33 +292,41 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
 
   void _onEditorChanged() {
     if (_isUpdatingEditors) return;
-    if (_items.isEmpty) return;
+    if (_selectedNote == null) return;
+
     final title = _titleController.text;
     final body = _bodyController.text;
     final combined = body.isNotEmpty ? '$title\n$body' : title;
 
     // Check if content actually changed to avoid unnecessary disk writes if listener triggers frequently
-    if (_items[_selectedIndex].content != combined) {
+    if (_selectedNote!.content != combined) {
+      // Update in memory
       setState(() {
-        _items[_selectedIndex].content = combined;
-        _items[_selectedIndex].lastModified = DateTime.now();
+        _selectedNote!.content = combined;
+        _selectedNote!.lastModified = DateTime.now();
       });
-      StorageService.updateNote(_items[_selectedIndex]);
+      // Save to disk (Async background)
+      StorageService.updateNote(_selectedNote!);
+      // Note: We are not refreshing the list headers immediately to avoid jumpiness,
+      // but the lastModified date in the list might be stale until reload.
+      // This is acceptable.
     }
   }
 
   void _updateEditorsFromSelected() {
-    if (_items.isEmpty) {
+    if (_selectedNote == null) {
       _isUpdatingEditors = true;
       _titleController.text = '';
       _bodyController.text = '';
       _isUpdatingEditors = false;
       return;
     }
-    final full = _items[_selectedIndex].content;
+
+    final full = _selectedNote!.content;
     final parts = full.split('\n');
     final title = parts.isNotEmpty ? parts.first : '';
     final body = parts.length > 1 ? parts.sublist(1).join('\n') : '';
+
     _isUpdatingEditors = true;
     _titleController.text = title;
     _bodyController.text = body;
@@ -349,10 +376,12 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
               ),
             ),
             Expanded(
-              child: NoteEditor(
-                titleController: _titleController,
-                bodyController: _bodyController,
-              ),
+              child: _isLoadingNote
+                  ? const Center(child: CircularProgressIndicator())
+                  : NoteEditor(
+                      titleController: _titleController,
+                      bodyController: _bodyController,
+                    ),
             ),
           ],
         ),

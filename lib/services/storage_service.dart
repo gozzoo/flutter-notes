@@ -6,47 +6,66 @@ import '../models/note.dart';
 class StorageService {
   static const String _notesBoxName = 'notes';
   static const String _settingsBoxName = 'settings';
+  static const String _metaBoxName = 'notes_meta';
 
-  static late Box _notesBox;
+  static late LazyBox _notesBox;
   static late Box _settingsBox;
+  static late Box _metaBox;
 
   static Future<void> init() async {
     await Hive.initFlutter();
-    _notesBox = await Hive.openBox(_notesBoxName);
+    _notesBox = await Hive.openLazyBox(_notesBoxName);
     _settingsBox = await Hive.openBox(_settingsBoxName);
+    _metaBox = await Hive.openBox(_metaBoxName);
 
     // Ensure window settings are moved to settings box before we potentially clear notes box
     await _migrateWindowSettings();
 
+    // Migrations
+    await _performMigrations();
+
+    // Ensure Meta Index exists
+    await _ensureMetaIndex();
+  }
+
+  static Future<void> _performMigrations() async {
     // 1. Handle Legacy "Large List" migration if "items" exists
     if (_notesBox.containsKey('items')) {
-      final items = _notesBox.get('items');
-      // Try to rescue selection index
-      // final selIndex = _notesBox.get('selectedIndex', defaultValue: 0);
-      // await _settingsBox.put('selectedIndex', selIndex); // We are moving to IDs, but saving index is okay for now or ignore.
-
+      final items = await _notesBox.get('items');
       await _notesBox.clear();
+      await _metaBox.clear();
 
       if (items is List) {
         for (var item in items) {
           if (item is String) {
             final note = Note.create(content: item);
-            await _notesBox.put(note.id, note.toJson());
+            await addNote(note);
           }
         }
       }
     }
-    // 2. Handle Integer Key migration (The box has items, but they are keyed by int)
+    // 2. Handle Integer Key migration
     else if (_notesBox.isNotEmpty) {
-      // If there is at least one integer key, we assume we need to migrate entire box to UUID keys
-      if (_notesBox.keys.any((k) => k is int)) {
+      bool neededMigration = false;
+      // Check if any key is int
+      for (var key in _notesBox.keys) {
+        if (key is int) {
+          neededMigration = true;
+          break;
+        }
+      }
+
+      if (neededMigration) {
         final Map<String, Map<String, dynamic>> newEntries = {};
 
-        for (var key in _notesBox.keys) {
-          if (key is String)
-            continue; // Skip string keys (like potential settings leftovers)
+        // We have to iterate keys.
+        // Copy to list to avoid concurrency issues during iteration
+        final keys = _notesBox.keys.toList();
 
-          final val = _notesBox.get(key);
+        for (var key in keys) {
+          if (key is String) continue;
+
+          final val = await _notesBox.get(key);
           Note note;
           if (val is Map) {
             note = Note.fromJson(Map<String, dynamic>.from(val));
@@ -59,51 +78,99 @@ class StorageService {
         }
 
         await _notesBox.clear();
+        await _metaBox.clear();
         for (var entry in newEntries.entries) {
-          await _notesBox.put(entry.key, entry.value);
+          // We can't use putAll on LazyBox easily with async, loop is fine
+          final note = Note.fromJson(entry.value);
+          await addNote(note);
         }
       }
     }
   }
 
+  static Future<void> _ensureMetaIndex() async {
+    // robust sync: check for keys in notesBox that are missing in metaBox
+    final notesKeys = _notesBox.keys.toSet();
+    final metaKeys = _metaBox.keys.toSet();
+
+    final missing = notesKeys.difference(metaKeys);
+    if (missing.isNotEmpty) {
+      for (var key in missing) {
+        final val = await _notesBox.get(key);
+        if (val is Map) {
+          final note = Note.fromJson(Map<String, dynamic>.from(val));
+          await _updateMeta(note);
+        }
+      }
+    }
+
+    // cleanup orphans (meta exists but note deleted externally?)
+    final orphans = metaKeys.difference(notesKeys);
+    for (var key in orphans) {
+      await _metaBox.delete(key);
+    }
+  }
+
+  static Future<void> _updateMeta(Note note) async {
+    await _metaBox.put(note.id, {
+      'id': note.id,
+      'creationDate': note.creationDate.toIso8601String(),
+      'lastModified': note.lastModified.toIso8601String(),
+    });
+  }
+
   static Future<void> _migrateWindowSettings() async {
-    final x = _notesBox.get('window_x');
-    final y = _notesBox.get('window_y');
-    final width = _notesBox.get('window_width');
-    final height = _notesBox.get('window_height');
+    // Since _notesBox is LazyBox, get is async
+    final x = await _notesBox.get('window_x');
+    final y = await _notesBox.get('window_y');
+    final width = await _notesBox.get('window_width');
+    final height = await _notesBox.get('window_height');
+
     if (x != null) await _settingsBox.put('window_x', x);
     if (y != null) await _settingsBox.put('window_y', y);
     if (width != null) await _settingsBox.put('window_width', width);
     if (height != null) await _settingsBox.put('window_height', height);
 
-    // Cleanup old settings from notes box
     if (x != null) await _notesBox.delete('window_x');
     if (y != null) await _notesBox.delete('window_y');
     if (width != null) await _notesBox.delete('window_width');
     if (height != null) await _notesBox.delete('window_height');
   }
 
-  static List<Note> getNotes() {
-    return _notesBox.values.map((e) {
-      if (e is Map) {
-        return Note.fromJson(Map<String, dynamic>.from(e));
-      } else if (e is String) {
-        return Note.create(content: e);
-      }
-      return Note.create(content: 'Error: invalid note format');
+  // OLD: static List<Note> getNotes()
+  // NEW: Get Metadata List
+  static List<NoteMetadata> getNotesMeta() {
+    return _metaBox.values.map((e) {
+      final map = Map<String, dynamic>.from(e as Map);
+      return NoteMetadata(
+        id: map['id'],
+        creationDate: DateTime.parse(map['creationDate']),
+        lastModified: DateTime.parse(map['lastModified']),
+      );
     }).toList();
+  }
+
+  static Future<Note?> getNote(String id) async {
+    final val = await _notesBox.get(id);
+    if (val != null && val is Map) {
+      return Note.fromJson(Map<String, dynamic>.from(val));
+    }
+    return null;
   }
 
   static Future<void> addNote(Note note) async {
     await _notesBox.put(note.id, note.toJson());
+    await _updateMeta(note);
   }
 
   static Future<void> updateNote(Note note) async {
     await _notesBox.put(note.id, note.toJson());
+    await _updateMeta(note);
   }
 
   static Future<void> deleteNote(String id) async {
     await _notesBox.delete(id);
+    await _metaBox.delete(id);
   }
 
   static String? getSelectedNoteId() {
