@@ -16,12 +16,17 @@ class NoteList extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        border: Border(
-          right: BorderSide(color: Theme.of(context).dividerColor),
-        ),
+        border: Border(right: BorderSide(color: Colors.grey[300]!)),
       ),
-      child: ListView.builder(
+      child: ListView.separated(
         itemCount: items.length,
+        separatorBuilder: (context, index) => Divider(
+          height: 1,
+          thickness: 1,
+          color: Colors.grey[300],
+          indent: 16,
+          endIndent: 16,
+        ),
         itemBuilder: (context, index) {
           final reverseIndex = items.length - 1 - index;
           final full = items[reverseIndex];
