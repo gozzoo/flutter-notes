@@ -1,7 +1,12 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:windows_single_instance/windows_single_instance.dart';
+import 'models/note.dart';
 import 'services/storage_service.dart';
 import 'widgets/note_list.dart';
 import 'widgets/note_editor.dart';
@@ -54,7 +59,7 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> with WindowListener {
-  final List<String> _items = [];
+  final List<Note> _items = [];
   int _selectedIndex = 0;
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _bodyController = TextEditingController();
@@ -140,8 +145,7 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
   }
 
   void _addNote() {
-    const newNote = 'New note';
-    // Add to storage first (simplistic sync approach for now)
+    final newNote = Note.create(content: 'New note');
     StorageService.addNote(newNote).then((_) {
       setState(() {
         _items.add(newNote);
@@ -150,6 +154,63 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
       });
       _saveSelectedIndex();
     });
+  }
+
+  Future<void> _importNotes() async {
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+
+      if (result != null && result.files.single.path != null) {
+        final file = File(result.files.single.path!);
+        final content = await file.readAsString();
+        final json = jsonDecode(content);
+
+        if (json is Map &&
+            json.containsKey('activeNotes') &&
+            json['activeNotes'] is List) {
+          final notes = json['activeNotes'] as List;
+          int importedCount = 0;
+          for (var item in notes) {
+            if (item is Map<String, dynamic>) {
+              try {
+                // Try to parse full Note object if format matches
+                final note = Note.fromJson(item);
+                await StorageService.addNote(note);
+                importedCount++;
+              } catch (_) {
+                // Fallback if full parse fails but content exists
+                if (item.containsKey('content')) {
+                  final note = Note.create(content: item['content']);
+                  await StorageService.addNote(note);
+                  importedCount++;
+                }
+              }
+            }
+          }
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Imported $importedCount notes')),
+            );
+          }
+          _loadNotes();
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Invalid file format')),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error importing notes: $e')));
+      }
+    }
   }
 
   void _deleteNote() {
@@ -173,7 +234,7 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
 
   Future<bool> _confirmDeleteDialog() async {
     if (_items.isEmpty) return false;
-    final name = _items[_selectedIndex].split('\n').first;
+    final name = _items[_selectedIndex].content.split('\n').first;
     final result = await showDialog<bool>(
       context: context,
       builder: (context) {
@@ -204,11 +265,12 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
     final combined = body.isNotEmpty ? '$title\n$body' : title;
 
     // Check if content actually changed to avoid unnecessary disk writes if listener triggers frequently
-    if (_items[_selectedIndex] != combined) {
+    if (_items[_selectedIndex].content != combined) {
       setState(() {
-        _items[_selectedIndex] = combined;
+        _items[_selectedIndex].content = combined;
+        _items[_selectedIndex].lastModified = DateTime.now();
       });
-      StorageService.updateNote(_selectedIndex, combined);
+      StorageService.updateNote(_selectedIndex, _items[_selectedIndex]);
     }
   }
 
@@ -220,7 +282,7 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
       _isUpdatingEditors = false;
       return;
     }
-    final full = _items[_selectedIndex];
+    final full = _items[_selectedIndex].content;
     final parts = full.split('\n');
     final title = parts.isNotEmpty ? parts.first : '';
     final body = parts.length > 1 ? parts.sublist(1).join('\n') : '';
@@ -240,6 +302,11 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
           backgroundColor: Theme.of(context).colorScheme.inversePrimary,
           title: Text(widget.title),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.file_upload),
+              tooltip: 'Import notes',
+              onPressed: _importNotes,
+            ),
             IconButton(
               icon: const Icon(Icons.add),
               tooltip: 'Add note',

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import '../models/note.dart';
 
 class NoteList extends StatelessWidget {
-  final List<String> items;
+  final List<Note> items;
   final int selectedIndex;
   final ValueChanged<int> onItemSelected;
 
@@ -29,7 +30,8 @@ class NoteList extends StatelessWidget {
         ),
         itemBuilder: (context, index) {
           final reverseIndex = items.length - 1 - index;
-          final full = items[reverseIndex];
+          final note = items[reverseIndex];
+          final full = note.content;
           final parts = full.split('\n');
           final firstLine = parts.isNotEmpty ? parts.first : '';
           // join all remaining lines into a single-line preview for subtitle

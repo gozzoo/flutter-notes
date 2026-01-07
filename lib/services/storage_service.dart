@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:window_manager/window_manager.dart';
+import '../models/note.dart';
 
 class StorageService {
   static const String _notesBoxName = 'notes';
@@ -14,45 +15,66 @@ class StorageService {
     _notesBox = await Hive.openBox(_notesBoxName);
     _settingsBox = await Hive.openBox(_settingsBoxName);
 
-    // Migration logic: Check if the 'notes' box contains the legacy 'items' list
+    // Migration logic
     if (_notesBox.containsKey('items')) {
       final items = _notesBox.get('items');
       final selIndex = _notesBox.get('selectedIndex', defaultValue: 0);
-      final x = _notesBox.get('window_x');
-      final y = _notesBox.get('window_y');
-      final width = _notesBox.get('window_width');
-      final height = _notesBox.get('window_height');
+      _migrateWindowSettings();
 
-      // Save settings to the new settings box
       await _settingsBox.put('selectedIndex', selIndex);
-      if (x != null) await _settingsBox.put('window_x', x);
-      if (y != null) await _settingsBox.put('window_y', y);
-      if (width != null) await _settingsBox.put('window_width', width);
-      if (height != null) await _settingsBox.put('window_height', height);
-
-      // Clear the notes box to remove legacy keys including 'items'
       await _notesBox.clear();
 
-      // Repopulate notes box as a collection (individual entries)
       if (items is List) {
-        await _notesBox.addAll(items.cast<String>());
+        // Migrate legacy list of strings
+        for (var item in items) {
+          if (item is String) {
+            await _notesBox.add(Note.create(content: item).toJson());
+          }
+        }
+      }
+    } else {
+      // Migrate existing individual string notes to Note objects
+      // We iterate keys to modify safe
+      final keys = _notesBox.keys.toList();
+      for (var key in keys) {
+        final val = _notesBox.get(key);
+        if (val is String) {
+          await _notesBox.put(key, Note.create(content: val).toJson());
+        }
       }
     }
   }
 
-  // Notes are now stored as individual values in the box.
-  // We use values.toList() to retrieve them.
-  // Hive preserves insertion order for integer keys (0, 1, 2...).
-  static List<String> getNotes() {
-    return _notesBox.values.cast<String>().toList();
+  static Future<void> _migrateWindowSettings() async {
+    final x = _notesBox.get('window_x');
+    final y = _notesBox.get('window_y');
+    final width = _notesBox.get('window_width');
+    final height = _notesBox.get('window_height');
+    if (x != null) await _settingsBox.put('window_x', x);
+    if (y != null) await _settingsBox.put('window_y', y);
+    if (width != null) await _settingsBox.put('window_width', width);
+    if (height != null) await _settingsBox.put('window_height', height);
   }
 
-  static Future<void> addNote(String content) async {
-    await _notesBox.add(content);
+  static List<Note> getNotes() {
+    return _notesBox.values.map((e) {
+      if (e is Map) {
+        // cast to Map<String, dynamic> safely
+        return Note.fromJson(Map<String, dynamic>.from(e));
+      } else if (e is String) {
+        // Should have been migrated, but fallback
+        return Note.create(content: e);
+      }
+      return Note.create(content: 'Error: invalid note format');
+    }).toList();
   }
 
-  static Future<void> updateNote(int index, String content) async {
-    await _notesBox.putAt(index, content);
+  static Future<void> addNote(Note note) async {
+    await _notesBox.add(note.toJson());
+  }
+
+  static Future<void> updateNote(int index, Note note) async {
+    await _notesBox.putAt(index, note.toJson());
   }
 
   static Future<void> deleteNote(int index) async {
