@@ -15,31 +15,52 @@ class StorageService {
     _notesBox = await Hive.openBox(_notesBoxName);
     _settingsBox = await Hive.openBox(_settingsBoxName);
 
-    // Migration logic
+    // Ensure window settings are moved to settings box before we potentially clear notes box
+    await _migrateWindowSettings();
+
+    // 1. Handle Legacy "Large List" migration if "items" exists
     if (_notesBox.containsKey('items')) {
       final items = _notesBox.get('items');
-      final selIndex = _notesBox.get('selectedIndex', defaultValue: 0);
-      _migrateWindowSettings();
+      // Try to rescue selection index
+      // final selIndex = _notesBox.get('selectedIndex', defaultValue: 0);
+      // await _settingsBox.put('selectedIndex', selIndex); // We are moving to IDs, but saving index is okay for now or ignore.
 
-      await _settingsBox.put('selectedIndex', selIndex);
       await _notesBox.clear();
 
       if (items is List) {
-        // Migrate legacy list of strings
         for (var item in items) {
           if (item is String) {
-            await _notesBox.add(Note.create(content: item).toJson());
+            final note = Note.create(content: item);
+            await _notesBox.put(note.id, note.toJson());
           }
         }
       }
-    } else {
-      // Migrate existing individual string notes to Note objects
-      // We iterate keys to modify safe
-      final keys = _notesBox.keys.toList();
-      for (var key in keys) {
-        final val = _notesBox.get(key);
-        if (val is String) {
-          await _notesBox.put(key, Note.create(content: val).toJson());
+    }
+    // 2. Handle Integer Key migration (The box has items, but they are keyed by int)
+    else if (_notesBox.isNotEmpty) {
+      // If there is at least one integer key, we assume we need to migrate entire box to UUID keys
+      if (_notesBox.keys.any((k) => k is int)) {
+        final Map<String, Map<String, dynamic>> newEntries = {};
+
+        for (var key in _notesBox.keys) {
+          if (key is String)
+            continue; // Skip string keys (like potential settings leftovers)
+
+          final val = _notesBox.get(key);
+          Note note;
+          if (val is Map) {
+            note = Note.fromJson(Map<String, dynamic>.from(val));
+          } else if (val is String) {
+            note = Note.create(content: val);
+          } else {
+            continue;
+          }
+          newEntries[note.id] = note.toJson();
+        }
+
+        await _notesBox.clear();
+        for (var entry in newEntries.entries) {
+          await _notesBox.put(entry.key, entry.value);
         }
       }
     }
@@ -54,15 +75,19 @@ class StorageService {
     if (y != null) await _settingsBox.put('window_y', y);
     if (width != null) await _settingsBox.put('window_width', width);
     if (height != null) await _settingsBox.put('window_height', height);
+
+    // Cleanup old settings from notes box
+    if (x != null) await _notesBox.delete('window_x');
+    if (y != null) await _notesBox.delete('window_y');
+    if (width != null) await _notesBox.delete('window_width');
+    if (height != null) await _notesBox.delete('window_height');
   }
 
   static List<Note> getNotes() {
     return _notesBox.values.map((e) {
       if (e is Map) {
-        // cast to Map<String, dynamic> safely
         return Note.fromJson(Map<String, dynamic>.from(e));
       } else if (e is String) {
-        // Should have been migrated, but fallback
         return Note.create(content: e);
       }
       return Note.create(content: 'Error: invalid note format');
@@ -70,23 +95,27 @@ class StorageService {
   }
 
   static Future<void> addNote(Note note) async {
-    await _notesBox.add(note.toJson());
+    await _notesBox.put(note.id, note.toJson());
   }
 
-  static Future<void> updateNote(int index, Note note) async {
-    await _notesBox.putAt(index, note.toJson());
+  static Future<void> updateNote(Note note) async {
+    await _notesBox.put(note.id, note.toJson());
   }
 
-  static Future<void> deleteNote(int index) async {
-    await _notesBox.deleteAt(index);
+  static Future<void> deleteNote(String id) async {
+    await _notesBox.delete(id);
   }
 
-  static int getSelectedIndex() {
-    return _settingsBox.get('selectedIndex', defaultValue: 0) as int;
+  static String? getSelectedNoteId() {
+    return _settingsBox.get('selected_note_id') as String?;
   }
 
-  static Future<void> saveSelectedIndex(int index) async {
-    await _settingsBox.put('selectedIndex', index);
+  static Future<void> saveSelectedNoteId(String? id) async {
+    if (id == null) {
+      await _settingsBox.delete('selected_note_id');
+    } else {
+      await _settingsBox.put('selected_note_id', id);
+    }
   }
 
   static Future<void> saveWindowBounds(Rect bounds) async {

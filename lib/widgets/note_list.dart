@@ -29,8 +29,7 @@ class NoteList extends StatelessWidget {
           endIndent: 16,
         ),
         itemBuilder: (context, index) {
-          final reverseIndex = items.length - 1 - index;
-          final note = items[reverseIndex];
+          final note = items[index];
           final full = note.content;
           final parts = full.split('\n');
           final firstLine = parts.isNotEmpty ? parts.first : '';
@@ -66,12 +65,12 @@ class NoteList extends StatelessWidget {
                     ),
                   )
                 : null,
-            selected: reverseIndex == selectedIndex,
+            selected: index == selectedIndex,
             selectedTileColor: Theme.of(
               context,
             ).colorScheme.primary.withAlpha((0.12 * 255).round()),
             selectedColor: Theme.of(context).colorScheme.primary,
-            onTap: () => onItemSelected(reverseIndex),
+            onTap: () => onItemSelected(index),
           );
         },
       ),

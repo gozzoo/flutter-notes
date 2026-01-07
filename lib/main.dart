@@ -103,14 +103,22 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
   }
 
   void _loadNotes() {
-    final items = StorageService.getNotes();
-    final sel = StorageService.getSelectedIndex();
+    var items = StorageService.getNotes();
+    // Sort by creationDate descending (Newest first)
+    items.sort((a, b) => b.creationDate.compareTo(a.creationDate));
+
+    final selectedId = StorageService.getSelectedNoteId();
 
     setState(() {
       _items.clear();
       _items.addAll(items);
       if (_items.isNotEmpty) {
-        _selectedIndex = sel.clamp(0, _items.length - 1);
+        if (selectedId != null) {
+          final index = _items.indexWhere((n) => n.id == selectedId);
+          _selectedIndex = index != -1 ? index : 0;
+        } else {
+          _selectedIndex = 0;
+        }
       } else {
         _selectedIndex = 0;
       }
@@ -118,8 +126,14 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
     _updateEditorsFromSelected();
   }
 
-  Future<void> _saveSelectedIndex() async {
-    await StorageService.saveSelectedIndex(_selectedIndex);
+  Future<void> _saveSelection() async {
+    if (_items.isNotEmpty &&
+        _selectedIndex >= 0 &&
+        _selectedIndex < _items.length) {
+      await StorageService.saveSelectedNoteId(_items[_selectedIndex].id);
+    } else {
+      await StorageService.saveSelectedNoteId(null);
+    }
   }
 
   void _handleKey(KeyEvent event) {
@@ -141,18 +155,18 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
       _selectedIndex = index;
       _updateEditorsFromSelected();
     });
-    _saveSelectedIndex();
+    _saveSelection();
   }
 
   void _addNote() {
     final newNote = Note.create(content: 'New note');
     StorageService.addNote(newNote).then((_) {
       setState(() {
-        _items.add(newNote);
-        _selectedIndex = _items.length - 1;
+        _items.insert(0, newNote);
+        _selectedIndex = 0;
         _updateEditorsFromSelected();
       });
-      _saveSelectedIndex();
+      _saveSelection();
     });
   }
 
@@ -215,10 +229,10 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
 
   void _deleteNote() {
     if (_items.isEmpty) return;
-    final indexToDelete = _selectedIndex;
-    StorageService.deleteNote(indexToDelete).then((_) {
+    final noteToDelete = _items[_selectedIndex];
+    StorageService.deleteNote(noteToDelete.id).then((_) {
       setState(() {
-        _items.removeAt(indexToDelete);
+        _items.removeAt(_selectedIndex);
         if (_items.isEmpty) {
           _selectedIndex = 0;
           _titleController.text = '';
@@ -228,7 +242,7 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
           _updateEditorsFromSelected();
         }
       });
-      _saveSelectedIndex();
+      _saveSelection();
     });
   }
 
@@ -270,7 +284,7 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
         _items[_selectedIndex].content = combined;
         _items[_selectedIndex].lastModified = DateTime.now();
       });
-      StorageService.updateNote(_selectedIndex, _items[_selectedIndex]);
+      StorageService.updateNote(_items[_selectedIndex]);
     }
   }
 
