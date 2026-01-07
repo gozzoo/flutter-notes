@@ -202,4 +202,35 @@ class StorageService {
       await windowManager.setBounds(Rect.fromLTWH(x, y, width, height));
     }
   }
+
+  static Future<List<NoteMetadata>> searchNotes(String query) async {
+    final queryLower = query.toLowerCase();
+    final matchedIds = <String>{};
+
+    // Iterate all notes to check content
+    for (var key in _notesBox.keys) {
+      final val = await _notesBox.get(key);
+      if (val is Map) {
+        final content = val['content'] as String? ?? '';
+        if (content.toLowerCase().contains(queryLower)) {
+          matchedIds.add(key as String);
+        }
+      }
+    }
+
+    return _metaBox.values
+        .where((e) {
+          final map = e as Map;
+          return matchedIds.contains(map['id']);
+        })
+        .map((e) {
+          final map = Map<String, dynamic>.from(e as Map);
+          return NoteMetadata(
+            id: map['id'],
+            creationDate: DateTime.parse(map['creationDate']),
+            lastModified: DateTime.parse(map['lastModified']),
+          );
+        })
+        .toList();
+  }
 }

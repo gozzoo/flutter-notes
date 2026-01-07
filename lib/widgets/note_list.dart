@@ -16,28 +16,23 @@ class NoteList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(right: BorderSide(color: Colors.grey[300]!)),
+    return ListView.separated(
+      itemCount: items.length,
+      separatorBuilder: (context, index) => Divider(
+        height: 1,
+        thickness: 1,
+        color: Colors.grey[300],
+        indent: 16,
+        endIndent: 16,
       ),
-      child: ListView.separated(
-        itemCount: items.length,
-        separatorBuilder: (context, index) => Divider(
-          height: 1,
-          thickness: 1,
-          color: Colors.grey[300],
-          indent: 16,
-          endIndent: 16,
-        ),
-        itemBuilder: (context, index) {
-          final metadata = items[index];
-          return NoteListItem(
-            metadata: metadata,
-            isSelected: index == selectedIndex,
-            onTap: () => onItemSelected(index),
-          );
-        },
-      ),
+      itemBuilder: (context, index) {
+        final metadata = items[index];
+        return NoteListItem(
+          metadata: metadata,
+          isSelected: index == selectedIndex,
+          onTap: () => onItemSelected(index),
+        );
+      },
     );
   }
 }

@@ -66,6 +66,7 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
 
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _bodyController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   bool _isUpdatingEditors = false;
 
@@ -87,6 +88,7 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
     _focusNode.dispose();
     _titleController.dispose();
     _bodyController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -105,30 +107,38 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
     await StorageService.saveWindowBounds(bounds);
   }
 
-  void _loadNotes() {
-    var items = StorageService.getNotesMeta();
+  Future<void> _loadNotes() async {
+    List<NoteMetadata> items;
+    if (_searchController.text.trim().isNotEmpty) {
+      items = await StorageService.searchNotes(_searchController.text.trim());
+    } else {
+      items = StorageService.getNotesMeta();
+    }
+
     // Sort by creationDate descending (Newest first)
     items.sort((a, b) => b.creationDate.compareTo(a.creationDate));
 
     final selectedId = StorageService.getSelectedNoteId();
 
-    setState(() {
-      _items.clear();
-      _items.addAll(items);
-      if (_items.isNotEmpty) {
-        if (selectedId != null) {
-          final index = _items.indexWhere((n) => n.id == selectedId);
-          _selectedIndex = index != -1 ? index : 0;
+    if (mounted) {
+      setState(() {
+        _items.clear();
+        _items.addAll(items);
+        if (_items.isNotEmpty) {
+          if (selectedId != null) {
+            final index = _items.indexWhere((n) => n.id == selectedId);
+            _selectedIndex = index != -1 ? index : 0;
+          } else {
+            _selectedIndex = 0;
+          }
+          _loadSelectedNote();
         } else {
           _selectedIndex = 0;
+          _selectedNote = null;
+          _updateEditorsFromSelected();
         }
-        _loadSelectedNote();
-      } else {
-        _selectedIndex = 0;
-        _selectedNote = null;
-        _updateEditorsFromSelected();
-      }
-    });
+      });
+    }
   }
 
   Future<void> _loadSelectedNote() async {
@@ -369,10 +379,53 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
           children: [
             SizedBox(
               width: 300,
-              child: NoteList(
-                items: _items,
-                selectedIndex: _selectedIndex,
-                onItemSelected: _selectItem,
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border(right: BorderSide(color: Colors.grey[300]!)),
+                ),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: _searchController,
+                        builder: (context, value, _) {
+                          return TextField(
+                            controller: _searchController,
+                            decoration: InputDecoration(
+                              hintText: 'Search...',
+                              prefixIcon: const Icon(Icons.search),
+                              suffixIcon: value.text.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear, size: 20),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        _loadNotes();
+                                      },
+                                    )
+                                  : null,
+                              border: const OutlineInputBorder(),
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                            ),
+                            // Trigger search on submit (Enter key)
+                            onSubmitted: (_) => _loadNotes(),
+                          );
+                        },
+                      ),
+                    ),
+                    Expanded(
+                      child: NoteList(
+                        items: _items,
+                        selectedIndex: _selectedIndex,
+                        onItemSelected: _selectItem,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             Expanded(
