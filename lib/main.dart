@@ -305,6 +305,42 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
     return result == true;
   }
 
+  Future<void> _deleteAllNotes() async {
+    final ok = await _confirmDeleteAllDialog();
+    if (ok) {
+      await StorageService.deleteAllNotes();
+      _loadNotes();
+    }
+  }
+
+  Future<bool> _confirmDeleteAllDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Delete ALL notes?'),
+          content: const Text(
+            'This will delete all notes permanently. This cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(
+                'Delete All',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    return result == true;
+  }
+
   void _onEditorChanged() {
     if (_isUpdatingEditors) return;
     if (_selectedNote == null) return;
@@ -377,6 +413,20 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
                       if (ok) _deleteNote();
                     }
                   : null,
+            ),
+            PopupMenuButton<String>(
+              tooltip: 'More options',
+              onSelected: (value) {
+                if (value == 'delete_all') {
+                  _deleteAllNotes();
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'delete_all',
+                  child: Text('Delete all notes'),
+                ),
+              ],
             ),
           ],
         ),

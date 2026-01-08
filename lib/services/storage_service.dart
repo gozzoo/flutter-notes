@@ -173,6 +173,11 @@ class StorageService {
     await _metaBox.delete(id);
   }
 
+  static Future<void> deleteAllNotes() async {
+    await _notesBox.clear();
+    await _metaBox.clear();
+  }
+
   static String? getSelectedNoteId() {
     return _settingsBox.get('selected_note_id') as String?;
   }
