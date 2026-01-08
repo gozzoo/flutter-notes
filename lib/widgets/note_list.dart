@@ -28,6 +28,7 @@ class NoteList extends StatelessWidget {
       itemBuilder: (context, index) {
         final metadata = items[index];
         return NoteListItem(
+          key: ValueKey(metadata.id),
           metadata: metadata,
           isSelected: index == selectedIndex,
           onTap: () => onItemSelected(index),

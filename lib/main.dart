@@ -116,7 +116,12 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
     }
 
     // Sort by creationDate descending (Newest first)
-    items.sort((a, b) => b.creationDate.compareTo(a.creationDate));
+    // Sort by creationDate descending (Newest first)
+    items.sort((a, b) {
+      final dateComp = b.creationDate.compareTo(a.creationDate);
+      if (dateComp != 0) return dateComp;
+      return b.lastModified.compareTo(a.lastModified);
+    });
 
     final selectedId = StorageService.getSelectedNoteId();
 
