@@ -71,7 +71,7 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
   final FocusNode _focusNode = FocusNode();
   bool _isUpdatingEditors = false;
   Timer? _debounceTimer;
-  String _saveStatus = '';
+  bool _isDirty = false;
 
   @override
   void initState() {
@@ -379,9 +379,9 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
 
     if (_selectedNote!.content == combined) return;
 
-    if (_saveStatus != 'Unsaved changes') {
+    if (!_isDirty) {
       setState(() {
-        _saveStatus = 'Unsaved changes';
+        _isDirty = true;
       });
     }
 
@@ -404,10 +404,6 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
     final combined = body.isNotEmpty ? '$title\n$body' : title;
 
     if (_selectedNote!.content != combined) {
-      setState(() {
-        _saveStatus = 'Saving...';
-      });
-
       if (mounted) {
         setState(() {
           _selectedNote!.content = combined;
@@ -420,24 +416,24 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
       await StorageService.updateNote(_selectedNote!);
 
       if (mounted) {
-        if (!(_debounceTimer?.isActive ?? false)) {
-          setState(() {
-            _saveStatus = 'Saved';
-          });
+        // Double check if content still matches what is in controllers
+        // (User might have typed more while saving)
+        final currentTitle = _titleController.text;
+        final currentBody = _bodyController.text;
+        final currentCombined = currentBody.isNotEmpty
+            ? '$currentTitle\n$currentBody'
+            : currentTitle;
 
-          Future.delayed(const Duration(seconds: 2), () {
-            if (mounted && _saveStatus == 'Saved') {
-              setState(() {
-                _saveStatus = '';
-              });
-            }
+        if (_selectedNote!.content == currentCombined) {
+          setState(() {
+            _isDirty = false;
           });
         }
       }
     } else {
-      if (mounted && _saveStatus == 'Unsaved changes') {
+      if (mounted && _isDirty) {
         setState(() {
-          _saveStatus = '';
+          _isDirty = false;
         });
       }
     }
@@ -553,9 +549,7 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
                       child: NoteList(
                         items: _items,
                         selectedIndex: _selectedIndex,
-                        isUnsaved:
-                            _saveStatus == 'Unsaved changes' ||
-                            _saveStatus == 'Saving...',
+                        isUnsaved: _isDirty,
                         onItemSelected: _selectItem,
                       ),
                     ),
