@@ -395,11 +395,6 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
           title: Text(widget.title),
           actions: [
             IconButton(
-              icon: const Icon(Icons.file_upload),
-              tooltip: 'Import notes',
-              onPressed: _importNotes,
-            ),
-            IconButton(
               icon: const Icon(Icons.add),
               tooltip: 'Add note',
               onPressed: _addNote,
@@ -417,11 +412,17 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
             PopupMenuButton<String>(
               tooltip: 'More options',
               onSelected: (value) {
-                if (value == 'delete_all') {
+                if (value == 'import') {
+                  _importNotes();
+                } else if (value == 'delete_all') {
                   _deleteAllNotes();
                 }
               },
               itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'import',
+                  child: Text('Import notes'),
+                ),
                 const PopupMenuItem(
                   value: 'delete_all',
                   child: Text('Delete all notes'),
