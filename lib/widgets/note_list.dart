@@ -5,12 +5,14 @@ import 'note_list_item.dart';
 class NoteList extends StatelessWidget {
   final List<NoteMetadata> items;
   final int selectedIndex;
+  final bool isUnsaved;
   final ValueChanged<int> onItemSelected;
 
   const NoteList({
     super.key,
     required this.items,
     required this.selectedIndex,
+    this.isUnsaved = false,
     required this.onItemSelected,
   });
 
@@ -31,6 +33,7 @@ class NoteList extends StatelessWidget {
           key: ValueKey(metadata.id),
           metadata: metadata,
           isSelected: index == selectedIndex,
+          isUnsaved: index == selectedIndex && isUnsaved,
           onTap: () => onItemSelected(index),
         );
       },

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -69,6 +70,8 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   bool _isUpdatingEditors = false;
+  Timer? _debounceTimer;
+  String _saveStatus = '';
 
   @override
   void initState() {
@@ -84,6 +87,7 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     windowManager.removeListener(this);
     _focusNode.dispose();
     _titleController.dispose();
@@ -108,6 +112,7 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
   }
 
   Future<void> _loadNotes() async {
+    await _flushSave();
     List<NoteMetadata> items;
     if (_searchController.text.trim().isNotEmpty) {
       items = await StorageService.searchNotes(_searchController.text.trim());
@@ -191,8 +196,9 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
     }
   }
 
-  void _selectItem(int index) {
+  Future<void> _selectItem(int index) async {
     if (_selectedIndex == index) return;
+    await _flushSave();
     setState(() {
       _selectedIndex = index;
     });
@@ -200,7 +206,8 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
     _loadSelectedNote();
   }
 
-  void _addNote() {
+  Future<void> _addNote() async {
+    await _flushSave();
     final newNote = Note.create(content: 'New note');
     StorageService.addNote(newNote).then((_) {
       // Refresh list logic
@@ -210,6 +217,7 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
   }
 
   Future<void> _importNotes() async {
+    await _flushSave();
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -285,6 +293,7 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
   }
 
   void _deleteNote() {
+    _debounceTimer?.cancel();
     if (_items.isEmpty) return;
     final idToDelete = _items[_selectedIndex].id;
     StorageService.deleteNote(idToDelete).then((_) {
@@ -326,6 +335,7 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
   Future<void> _deleteAllNotes() async {
     final ok = await _confirmDeleteAllDialog();
     if (ok) {
+      _debounceTimer?.cancel();
       await StorageService.deleteAllNotes();
       _loadNotes();
     }
@@ -367,18 +377,69 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
     final body = _bodyController.text;
     final combined = body.isNotEmpty ? '$title\n$body' : title;
 
-    // Check if content actually changed to avoid unnecessary disk writes if listener triggers frequently
-    if (_selectedNote!.content != combined) {
-      // Update in memory
+    if (_selectedNote!.content == combined) return;
+
+    if (_saveStatus != 'Unsaved changes') {
       setState(() {
+        _saveStatus = 'Unsaved changes';
+      });
+    }
+
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(seconds: 2), _saveNow);
+  }
+
+  Future<void> _flushSave() async {
+    if (_debounceTimer?.isActive ?? false) {
+      _debounceTimer!.cancel();
+      await _saveNow();
+    }
+  }
+
+  Future<void> _saveNow() async {
+    if (_selectedNote == null) return;
+
+    final title = _titleController.text;
+    final body = _bodyController.text;
+    final combined = body.isNotEmpty ? '$title\n$body' : title;
+
+    if (_selectedNote!.content != combined) {
+      setState(() {
+        _saveStatus = 'Saving...';
+      });
+
+      if (mounted) {
+        setState(() {
+          _selectedNote!.content = combined;
+          _selectedNote!.lastModified = DateTime.now();
+        });
+      } else {
         _selectedNote!.content = combined;
         _selectedNote!.lastModified = DateTime.now();
-      });
-      // Save to disk (Async background)
-      StorageService.updateNote(_selectedNote!);
-      // Note: We are not refreshing the list headers immediately to avoid jumpiness,
-      // but the lastModified date in the list might be stale until reload.
-      // This is acceptable.
+      }
+      await StorageService.updateNote(_selectedNote!);
+
+      if (mounted) {
+        if (!(_debounceTimer?.isActive ?? false)) {
+          setState(() {
+            _saveStatus = 'Saved';
+          });
+
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted && _saveStatus == 'Saved') {
+              setState(() {
+                _saveStatus = '';
+              });
+            }
+          });
+        }
+      }
+    } else {
+      if (mounted && _saveStatus == 'Unsaved changes') {
+        setState(() {
+          _saveStatus = '';
+        });
+      }
     }
   }
 
@@ -492,6 +553,9 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
                       child: NoteList(
                         items: _items,
                         selectedIndex: _selectedIndex,
+                        isUnsaved:
+                            _saveStatus == 'Unsaved changes' ||
+                            _saveStatus == 'Saving...',
                         onItemSelected: _selectItem,
                       ),
                     ),

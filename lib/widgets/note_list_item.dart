@@ -5,12 +5,14 @@ import '../services/storage_service.dart';
 class NoteListItem extends StatefulWidget {
   final NoteMetadata metadata;
   final bool isSelected;
+  final bool isUnsaved;
   final VoidCallback onTap;
 
   const NoteListItem({
     super.key,
     required this.metadata,
     required this.isSelected,
+    this.isUnsaved = false,
     required this.onTap,
   });
 
@@ -89,23 +91,46 @@ class _NoteListItemState extends State<NoteListItem> {
     }
 
     return ListTile(
-      title: Text(
-        firstLine.isEmpty ? 'Untitled' : firstLine,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(
-          context,
-        ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
-      ),
-      subtitle: secondLine.isNotEmpty
-          ? Text(
-              secondLine,
+      contentPadding: const EdgeInsets.only(left: 4, right: 12),
+      title: Row(
+        children: [
+          SizedBox(
+            width: 12,
+            height: 12,
+            child: widget.isUnsaved
+                ? Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.blue,
+                      shape: BoxShape.circle,
+                    ),
+                  )
+                : null,
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              firstLine.isEmpty ? 'Untitled' : firstLine,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withAlpha((0.7 * 255).round()),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+      subtitle: secondLine.isNotEmpty
+          ? Padding(
+              padding: const EdgeInsets.only(left: 16),
+              child: Text(
+                secondLine,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withAlpha((0.7 * 255).round()),
+                ),
               ),
             )
           : null,
