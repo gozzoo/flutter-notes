@@ -6,6 +6,7 @@ class NoteListItem extends StatelessWidget {
   final bool isSelected;
   final bool isUnsaved;
   final VoidCallback onTap;
+  final bool isScrolling;
 
   const NoteListItem({
     super.key,
@@ -13,11 +14,13 @@ class NoteListItem extends StatelessWidget {
     required this.isSelected,
     this.isUnsaved = false,
     required this.onTap,
+    this.isScrolling = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
+      hoverColor: isScrolling ? Colors.transparent : null,
       contentPadding: const EdgeInsets.only(left: 4, right: 12),
       title: Row(
         children: [

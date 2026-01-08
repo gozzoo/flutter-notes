@@ -22,6 +22,7 @@ class NoteList extends StatefulWidget {
 
 class _NoteListState extends State<NoteList> {
   late final ScrollController _scrollController;
+  final ValueNotifier<bool> _isScrollingNotifier = ValueNotifier(false);
 
   @override
   void initState() {
@@ -32,33 +33,50 @@ class _NoteListState extends State<NoteList> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _isScrollingNotifier.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
-      controller: _scrollController,
-      physics: const HeavyScrollPhysics(parent: BouncingScrollPhysics()),
-      cacheExtent: 500,
-      itemCount: widget.items.length,
-      separatorBuilder: (context, index) => Divider(
-        height: 1,
-        thickness: 1,
-        color: Colors.grey[300],
-        indent: 16,
-        endIndent: 16,
-      ),
-      itemBuilder: (context, index) {
-        final metadata = widget.items[index];
-        return NoteListItem(
-          key: ValueKey(metadata.id),
-          metadata: metadata,
-          isSelected: index == widget.selectedIndex,
-          isUnsaved: index == widget.selectedIndex && widget.isUnsaved,
-          onTap: () => widget.onItemSelected(index),
-        );
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification is ScrollStartNotification) {
+          _isScrollingNotifier.value = true;
+        } else if (notification is ScrollEndNotification) {
+          _isScrollingNotifier.value = false;
+        }
+        return false;
       },
+      child: ValueListenableBuilder<bool>(
+        valueListenable: _isScrollingNotifier,
+        builder: (context, isScrolling, child) {
+          return ListView.separated(
+            controller: _scrollController,
+            physics: const HeavyScrollPhysics(parent: BouncingScrollPhysics()),
+            cacheExtent: 500,
+            itemCount: widget.items.length,
+            separatorBuilder: (context, index) => Divider(
+              height: 1,
+              thickness: 1,
+              color: Colors.grey[300],
+              indent: 16,
+              endIndent: 16,
+            ),
+            itemBuilder: (context, index) {
+              final metadata = widget.items[index];
+              return NoteListItem(
+                key: ValueKey(metadata.id),
+                metadata: metadata,
+                isSelected: index == widget.selectedIndex,
+                isUnsaved: index == widget.selectedIndex && widget.isUnsaved,
+                isScrolling: isScrolling,
+                onTap: () => widget.onItemSelected(index),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
