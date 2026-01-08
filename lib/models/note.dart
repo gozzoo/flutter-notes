@@ -55,9 +55,14 @@ class NoteMetadata {
   final DateTime creationDate;
   final DateTime lastModified;
 
+  final String title;
+  final String preview;
+
   NoteMetadata({
     required this.id,
     required this.creationDate,
     required this.lastModified,
+    required this.title,
+    required this.preview,
   });
 }

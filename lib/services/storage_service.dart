@@ -104,6 +104,20 @@ class StorageService {
       }
     }
 
+    // Check for existing keys that define metadata but might be missing new fields (title, preview)
+    for (var key in metaKeys) {
+      final metaVal = _metaBox.get(key);
+      if (metaVal is Map) {
+        if (metaVal['title'] == null || metaVal['preview'] == null) {
+          final val = await _notesBox.get(key);
+          if (val is Map) {
+            final note = Note.fromJson(Map<String, dynamic>.from(val));
+            await _updateMeta(note);
+          }
+        }
+      }
+    }
+
     // cleanup orphans (meta exists but note deleted externally?)
     final orphans = metaKeys.difference(notesKeys);
     for (var key in orphans) {
@@ -112,10 +126,27 @@ class StorageService {
   }
 
   static Future<void> _updateMeta(Note note) async {
+    final full = note.content;
+    final parts = full.split('\n');
+    final firstLine = parts.isNotEmpty ? parts.first : '';
+    // join all remaining lines into a single-line preview for subtitle
+    String secondLine = '';
+    if (parts.length > 1) {
+      secondLine = parts.sublist(1).join(' ').trim();
+    } else {
+      // for single-line items, show a short preview only if long
+      final trimmed = full.trim();
+      if (trimmed.length > 40) {
+        secondLine = trimmed.substring(0, 40).trim();
+      }
+    }
+
     await _metaBox.put(note.id, {
       'id': note.id,
       'creationDate': note.creationDate.toIso8601String(),
       'lastModified': note.lastModified.toIso8601String(),
+      'title': firstLine.isEmpty ? 'Untitled' : firstLine,
+      'preview': secondLine,
     });
   }
 
@@ -146,6 +177,8 @@ class StorageService {
         id: map['id'],
         creationDate: DateTime.parse(map['creationDate']),
         lastModified: DateTime.parse(map['lastModified']),
+        title: map['title'] ?? 'Untitled',
+        preview: map['preview'] ?? '',
       );
     }).toList();
   }
@@ -234,6 +267,8 @@ class StorageService {
             id: map['id'],
             creationDate: DateTime.parse(map['creationDate']),
             lastModified: DateTime.parse(map['lastModified']),
+            title: map['title'] ?? 'Untitled',
+            preview: map['preview'] ?? '',
           );
         })
         .toList();

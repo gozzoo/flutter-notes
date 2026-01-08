@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/note.dart';
 import 'note_list_item.dart';
 
-class NoteList extends StatelessWidget {
+class NoteList extends StatefulWidget {
   final List<NoteMetadata> items;
   final int selectedIndex;
   final bool isUnsaved;
@@ -17,9 +17,31 @@ class NoteList extends StatelessWidget {
   });
 
   @override
+  State<NoteList> createState() => _NoteListState();
+}
+
+class _NoteListState extends State<NoteList> {
+  late final ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return ListView.separated(
-      itemCount: items.length,
+      controller: _scrollController,
+      physics: const HeavyScrollPhysics(parent: BouncingScrollPhysics()),
+      cacheExtent: 500,
+      itemCount: widget.items.length,
       separatorBuilder: (context, index) => Divider(
         height: 1,
         thickness: 1,
@@ -28,15 +50,37 @@ class NoteList extends StatelessWidget {
         endIndent: 16,
       ),
       itemBuilder: (context, index) {
-        final metadata = items[index];
+        final metadata = widget.items[index];
         return NoteListItem(
           key: ValueKey(metadata.id),
           metadata: metadata,
-          isSelected: index == selectedIndex,
-          isUnsaved: index == selectedIndex && isUnsaved,
-          onTap: () => onItemSelected(index),
+          isSelected: index == widget.selectedIndex,
+          isUnsaved: index == widget.selectedIndex && widget.isUnsaved,
+          onTap: () => widget.onItemSelected(index),
         );
       },
     );
+  }
+}
+
+class HeavyScrollPhysics extends BouncingScrollPhysics {
+  const HeavyScrollPhysics({super.parent});
+
+  @override
+  HeavyScrollPhysics applyTo(ScrollPhysics? ancestor) {
+    return HeavyScrollPhysics(parent: buildParent(ancestor));
+  }
+
+  @override
+  Simulation? createBallisticSimulation(
+    ScrollMetrics position,
+    double velocity,
+  ) {
+    // Significantly reduce velocity to simulate higher friction/mass
+    // This makes the scroll "stop" much faster after a fling
+    if (velocity.abs() > 0) {
+      return super.createBallisticSimulation(position, velocity * 0.9);
+    }
+    return super.createBallisticSimulation(position, velocity);
   }
 }
