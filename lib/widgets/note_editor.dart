@@ -5,12 +5,14 @@ class NoteEditor extends StatelessWidget {
   final TextEditingController titleController;
   final TextEditingController bodyController;
   final Note? note;
+  final VoidCallback? onDelete;
 
   const NoteEditor({
     super.key,
     required this.titleController,
     required this.bodyController,
     this.note,
+    this.onDelete,
   });
 
   void _showMetadata(BuildContext context) {
@@ -30,6 +32,15 @@ class NoteEditor extends StatelessWidget {
             ],
           ),
           actions: [
+            if (onDelete != null)
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  onDelete!();
+                },
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Delete'),
+              ),
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('Close'),

@@ -417,16 +417,6 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
               tooltip: 'Add note',
               onPressed: _addNote,
             ),
-            IconButton(
-              icon: const Icon(Icons.delete),
-              tooltip: 'Delete note',
-              onPressed: _items.isNotEmpty
-                  ? () async {
-                      final ok = await _confirmDeleteDialog();
-                      if (ok) _deleteNote();
-                    }
-                  : null,
-            ),
             PopupMenuButton<String>(
               tooltip: 'More options',
               onSelected: (value) {
@@ -516,6 +506,12 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
                       titleController: _titleController,
                       bodyController: _bodyController,
                       note: _selectedNote,
+                      onDelete: _items.isNotEmpty
+                          ? () async {
+                              final ok = await _confirmDeleteDialog();
+                              if (ok) _deleteNote();
+                            }
+                          : null,
                     ),
             ),
           ],
