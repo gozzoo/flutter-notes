@@ -236,7 +236,25 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
               } catch (_) {
                 // Fallback if full parse fails but content exists
                 if (item.containsKey('content')) {
-                  final note = Note.create(content: item['content']);
+                  DateTime? creationDate;
+                  if (item.containsKey('creationDate')) {
+                    try {
+                      creationDate = DateTime.parse(item['creationDate']);
+                    } catch (_) {}
+                  }
+
+                  DateTime? lastModified;
+                  if (item.containsKey('lastModified')) {
+                    try {
+                      lastModified = DateTime.parse(item['lastModified']);
+                    } catch (_) {}
+                  }
+
+                  final note = Note.create(
+                    content: item['content'],
+                    creationDate: creationDate,
+                    lastModified: lastModified,
+                  );
                   await StorageService.addNote(note);
                   importedCount++;
                 }

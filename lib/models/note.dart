@@ -15,13 +15,17 @@ class Note {
     this.markdown = true,
   });
 
-  factory Note.create({required String content}) {
+  factory Note.create({
+    required String content,
+    DateTime? creationDate,
+    DateTime? lastModified,
+  }) {
     final now = DateTime.now();
     return Note(
       id: const Uuid().v4(),
       content: content,
-      creationDate: now,
-      lastModified: now,
+      creationDate: creationDate ?? now,
+      lastModified: lastModified ?? now,
     );
   }
 
