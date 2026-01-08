@@ -446,6 +446,7 @@ class _MyHomePageState extends State<MyHomePage> with WindowListener {
                   : NoteEditor(
                       titleController: _titleController,
                       bodyController: _bodyController,
+                      note: _selectedNote,
                     ),
             ),
           ],
