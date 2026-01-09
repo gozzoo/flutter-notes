@@ -51,27 +51,56 @@ class _NoteListState extends State<NoteList> {
       child: ValueListenableBuilder<bool>(
         valueListenable: _isScrollingNotifier,
         builder: (context, isScrolling, child) {
-          return ListView.separated(
+          return ListView.builder(
             controller: _scrollController,
             physics: const HeavyScrollPhysics(parent: BouncingScrollPhysics()),
             cacheExtent: 500,
             itemCount: widget.items.length,
-            separatorBuilder: (context, index) => Divider(
-              height: 1,
-              thickness: 1,
-              color: Colors.grey[300],
-              indent: 16,
-              endIndent: 16,
+            prototypeItem: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                NoteListItem(
+                  metadata: NoteMetadata(
+                    id: 'prototype',
+                    title: 'Prototype Title',
+                    preview: 'Prototype Preview',
+                    creationDate: DateTime.now(),
+                    lastModified: DateTime.now(),
+                  ),
+                  isSelected: false,
+                  onTap: () {},
+                ),
+                Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: Colors.grey[300],
+                  indent: 16,
+                  endIndent: 16,
+                ),
+              ],
             ),
             itemBuilder: (context, index) {
               final metadata = widget.items[index];
-              return NoteListItem(
-                key: ValueKey(metadata.id),
-                metadata: metadata,
-                isSelected: index == widget.selectedIndex,
-                isUnsaved: index == widget.selectedIndex && widget.isUnsaved,
-                isScrolling: isScrolling,
-                onTap: () => widget.onItemSelected(index),
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  NoteListItem(
+                    key: ValueKey(metadata.id),
+                    metadata: metadata,
+                    isSelected: index == widget.selectedIndex,
+                    isUnsaved:
+                        index == widget.selectedIndex && widget.isUnsaved,
+                    isScrolling: isScrolling,
+                    onTap: () => widget.onItemSelected(index),
+                  ),
+                  Divider(
+                    height: 1,
+                    thickness: 1,
+                    color: Colors.grey[300],
+                    indent: 16,
+                    endIndent: 16,
+                  ),
+                ],
               );
             },
           );
@@ -94,10 +123,8 @@ class HeavyScrollPhysics extends BouncingScrollPhysics {
     ScrollMetrics position,
     double velocity,
   ) {
-    // Significantly reduce velocity to simulate higher friction/mass
-    // This makes the scroll "stop" much faster after a fling
     if (velocity.abs() > 0) {
-      return super.createBallisticSimulation(position, velocity * 0.9);
+      return super.createBallisticSimulation(position, velocity * 0.7);
     }
     return super.createBallisticSimulation(position, velocity);
   }
