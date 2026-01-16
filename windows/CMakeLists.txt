@@ -1,5 +1,9 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.14)
+
+# Force Windows SDK to Windows 11 version
+set(CMAKE_SYSTEM_VERSION 10.0.26100.0 CACHE STRING "Windows SDK Version")
+
 project(flutter_notes LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change

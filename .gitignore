@@ -18,4 +18,14 @@
 # Generated plugin registrant files (platform-specific)
 **/generated_plugin_registrant.*
 
+# Windows
+windows/flutter/ephemeral/
+windows/build/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.[Cc]ache
+!*.[Cc]ache/
+
 # End of project-specific ignores
