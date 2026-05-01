@@ -11,7 +11,7 @@ class NoteImporter {
   /// Throws specific exceptions or returns -1 on user cancellation/error if needed,
   /// but typically we treat null/empty as cancellation or no-op.
   static Future<int> pickAndImport() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
+    FilePickerResult? result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['json'],
     );
